@@ -6,7 +6,7 @@ authors:
 
 targets:
   voipstack_audio_fork:
-    main: src/voipstack_audio_fork.cr
+    main: src/cli.cr
 
 crystal: ">= 1.17.0"
 

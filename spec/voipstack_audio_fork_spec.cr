@@ -40,9 +40,9 @@ class UAC
     @inbound = UDPSocket.new
   end
 
-  def pair(address : Socket::IPAddress)
+  def pair(address : Socket::IPAddress, inbound_port : Int32)
     @socket.connect address
-    @inbound.bind("127.0.0.1", 0)
+    @inbound.bind("127.0.0.1", inbound_port)
   end
 
   def host
@@ -88,19 +88,41 @@ end
 describe VoipstackAudioFork do
   it "binds to unused port" do
     audio_fork = VoipstackAudioFork::Server.new
-    address = audio_fork.bind_udp("127.0.0.1", 0)
+    address = audio_fork.bind_pair("127.0.0.1", 0, "127.0.0.1", 0)
     address.port.should_not eq(0)
     audio_fork.close
+  end
+
+  it "receive BYE on empty state" do
+    dumper = DummyMediaDumper.new
+    audio_fork = VoipstackAudioFork::Server.new
+    audio_fork.attach_dumper(dumper)
+    address = audio_fork.bind_pair("127.0.0.1", 0, "127.0.0.1", 7676)
+    uac = UAC.new
+    uac.pair(address, 7676)
+
+    run_audio_fork(audio_fork) do
+      bye_request = SIPUtils::Network::SIP::Request.new("BYE", "sip:bob@example.com", "SIP/2.0")
+      bye_request.headers["Via"] = "SIP/2.0/UDP #{uac.host}:#{uac.port};branch=z9hG4bK776asdhj"
+      bye_request.headers["From"] = "Alice <sip:alice@example.com>;tag=12345"
+      bye_request.headers["To"] = "Bob <sip:bob@example.com>;tag=67890"
+      bye_request.headers["Call-ID"] = "1234567890@example.com"
+      bye_request.headers["CSeq"] = "2 BYE"
+      bye_request.headers["Content-Length"] = "0"
+      uac.send(bye_request)
+      # check BYE response
+      response = uac.recv
+      response.status_code.should eq(200)
+    end
   end
 
   it "flow INVITE/Response/ACK only PCMU" do
     dumper = DummyMediaDumper.new
     audio_fork = VoipstackAudioFork::Server.new
     audio_fork.attach_dumper(dumper)
-    address = audio_fork.bind_udp("127.0.0.1", 0)
-
+    address = audio_fork.bind_pair("127.0.0.1", 0, "127.0.0.1", 7676)
     uac = UAC.new
-    uac.pair(address)
+    uac.pair(address, 7676)
 
     run_audio_fork(audio_fork) do
       # send INVITE
@@ -129,6 +151,9 @@ describe VoipstackAudioFork do
       ack_request.headers["Content-Length"] = "0"
       uac.send(ack_request)
 
+      sleep 0.1.seconds
+      audio_fork.has_media_server_for_call_id?(request.headers["Call-ID"]).should be_true
+
       # stream audio
       uac.stream_audio(sdp, "spec/test.ulaw")
       sleep 1.second
@@ -144,6 +169,8 @@ describe VoipstackAudioFork do
       bye_request.headers["Content-Length"] = "0"
       uac.send(bye_request)
 
+      sleep 0.1.seconds
+      audio_fork.has_media_server_for_call_id?(request.headers["Call-ID"]).should be_false
       # check BYE response
       response = uac.recv
       response.status_code.should eq(200)
