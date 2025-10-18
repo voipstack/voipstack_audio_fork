@@ -8,6 +8,10 @@ targets:
   voipstack_audio_fork:
     main: src/voipstack_audio_fork.cr
 
-crystal: '>= 1.17.0'
+crystal: ">= 1.17.0"
+
+dependencies:
+  sip_utils:
+    github: bit4bit/sip_utils.cr
 
 license: MIT

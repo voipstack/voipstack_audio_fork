@@ -1,6 +1,12 @@
 # voipstack_audio_fork
 
-TODO: Write a description here
+Send audio packets through the WebSocket.
+
+[Reimplementation](https://github.com/bit4bit/sip_utils.cr/blob/main/examples/media_dumper.cr)
+
+## Caveats
+
+* Only supports PCMU
 
 ## Installation
 

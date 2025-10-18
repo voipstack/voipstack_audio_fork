@@ -1,0 +1,6 @@
+version: 2.0
+shards:
+  sip_utils:
+    git: https://github.com/bit4bit/sip_utils.cr.git
+    version: 0.1.0+git.commit.15f8863ab9ce87d3de72af41d0dc5a2aaa66cafe
+
