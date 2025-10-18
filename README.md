@@ -39,9 +39,17 @@ Forward SIP traffic from port 5060 to PBX at 192.168.1.10:5080 and dump audio:
 ```sh
 ./bin/voipstack_audio_fork \
   -s sip://192.168.1.10:5080 \
-  -l 0.0.0.0 \
+  -l 172.15.238.1 \
   -p 5060 \
   -o raw:///var/audio/call.ulaw
+```
+
+#### Freeswitch Usage
+
+Test with playback.
+
+```
+freeswitch@096f2ec85864> originate sofia/internal/voipstack@172.15.238.1:5060 &playback(/etc/freeswitch/audios/stones-karaoke.wav)
 ```
 
 ## Library Usage
