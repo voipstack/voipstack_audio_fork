@@ -54,7 +54,7 @@ describe VoipstackAudioFork do
     audio_fork.close
   end
 
-  it "accept INVITE only PCMU" do
+  it "flow INVITE/Response/ACK only PCMU" do
     audio_fork = VoipstackAudioFork::Server.new
     address = audio_fork.bind_udp("127.0.0.1", 0)
     uac = UAC.new
@@ -74,6 +74,17 @@ describe VoipstackAudioFork do
       response.headers["Content-Type"].should eq("application/sdp")
       sdp = SIPUtils::Network::SIP(SIPUtils::Network::SIP::SDP).parse(IO::Memory.new(response.body || ""))
       sdp.attributes[0].should eq("rtpmap:0 PCMU/8000")
+
+      bye_request = SIPUtils::Network::SIP::Request.new("BYE", "sip:bob@example.com", "SIP/2.0")
+      bye_request.headers["Via"] = "SIP/2.0/UDP #{uac.host}:#{uac.port};branch=z9hG4bK776asdhj"
+      bye_request.headers["From"] = "Alice <sip:alice@example.com>;tag=12345"
+      bye_request.headers["To"] = "Bob <sip:bob@example.com>;tag=67890"
+      bye_request.headers["Call-ID"] = "1234567890@example.com"
+      bye_request.headers["CSeq"] = "2 BYE"
+      bye_request.headers["Content-Length"] = "0"
+      uac.send(bye_request)
+      response = uac.recv
+      response.status_code.should eq(200)
     end
   end
 end

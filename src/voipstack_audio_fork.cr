@@ -25,23 +25,37 @@ module VoipstackAudioFork
       @sockets.each do |socket|
         spawn do
           loop do
+            break if socket.closed?
             message, _ = socket.receive(8096)
             request = SIPUtils::Network::SIP(SIPUtils::Network::SIP::Request).parse(IO::Memory.new(message))
             client_addr = ua.parse_via_address(request)
 
-            response = ua.answer_invite(request: request, media_address: "0.0.0.0", media_port: 0, session_id: "0", via_address: socket.local_address.to_s)
-
-            client = UDPSocket.new
-            client.connect client_addr
-            client.send SIPUtils::Network.encode(response)
-            client.close
+            case request.method
+            when "ACK"
+              Log.debug { "Received ACK, cal established" }
+            when "BYE"
+              Log.debug { "Received BYE, call terminated" }
+              response = ua.answer_bye(request: request, via_address: socket.local_address.to_s)
+              client_send(client_addr, response)
+            when "INVITE"
+              Log.debug { "Received INVITE, call initiated" }
+              response = ua.answer_invite(request: request, media_address: "0.0.0.0", media_port: 0, session_id: "0", via_address: socket.local_address.to_s)
+              client_send(client_addr, response)
+            end
           end
         ensure
           done.send nil
         end
       end
 
-      done.receive
+      @sockets.size.times { done.receive }
+    end
+
+    private def client_send(client_addr, response)
+      client = UDPSocket.new
+      client.connect client_addr
+      client.send SIPUtils::Network.encode(response)
+      client.close
     end
 
     def close
