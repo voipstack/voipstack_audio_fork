@@ -1,0 +1,13 @@
+name: voipstack_audio_fork
+version: 0.1.0
+
+authors:
+  - Jovany Leandro G.C <bit4bit@riseup.net>
+
+targets:
+  voipstack_audio_fork:
+    main: src/voipstack_audio_fork.cr
+
+crystal: '>= 1.17.0'
+
+license: MIT
