@@ -1,6 +1,27 @@
 require "sip_utils"
 require "./spec_helper"
 
+class DummyMediaDumper < VoipstackAudioFork::MediaDumper
+  getter :bytes
+
+  def initialize
+    @bytes = 0
+  end
+
+  def start(session_id)
+    Log.debug { "Dumper #{session_id} started" }
+  end
+
+  def dump(session_id, data)
+    Log.debug { "Dumper #{session_id} dumped #{data.size} bytes" }
+    @bytes += data.size
+  end
+
+  def stop(session_id)
+    Log.debug { "Dumper #{session_id} stopped" }
+  end
+end
+
 def run_audio_fork(audio_fork, &)
   spawn do
     audio_fork.listen
@@ -40,6 +61,24 @@ class UAC
     message, _ = @inbound.receive(8096)
     SIPUtils::Network::SIP(SIPUtils::Network::SIP::Response).parse(IO::Memory.new(message))
   end
+
+  def stream_audio(sdp, filepath)
+    media_host = sdp.connection.split[2]
+    media_port = sdp.media.split[1].to_i
+
+    media_conn = UDPSocket.new
+    media_conn.connect media_host, media_port
+    Log.debug { "Streaming audio to #{media_host}:#{media_port}" }
+
+    File.open(filepath, "r") do |file|
+      buffer = Bytes.new(1500)
+      while file.read(buffer) > 0
+        media_conn.send(buffer)
+      end
+    end
+
+    media_conn.close
+  end
 end
 
 def uac_send(client, request)
@@ -55,12 +94,16 @@ describe VoipstackAudioFork do
   end
 
   it "flow INVITE/Response/ACK only PCMU" do
+    dumper = DummyMediaDumper.new
     audio_fork = VoipstackAudioFork::Server.new
+    audio_fork.attach_dumper(dumper)
     address = audio_fork.bind_udp("127.0.0.1", 0)
+
     uac = UAC.new
     uac.pair(address)
 
     run_audio_fork(audio_fork) do
+      # send INVITE
       request = SIPUtils::Network::SIP::Request.new("INVITE", "sip:bob@example.com", "SIP/2.0")
       request.headers["Via"] = "SIP/2.0/UDP #{uac.host}:#{uac.port};branch=z9hG4bK776asdhj"
       request.headers["From"] = "Alice <sip:alice@example.com>;tag=12345"
@@ -71,10 +114,27 @@ describe VoipstackAudioFork do
       uac.send(request)
       response = uac.recv
 
+      # check INVITE response
       response.headers["Content-Type"].should eq("application/sdp")
       sdp = SIPUtils::Network::SIP(SIPUtils::Network::SIP::SDP).parse(IO::Memory.new(response.body || ""))
       sdp.attributes[0].should eq("rtpmap:0 PCMU/8000")
 
+      # send ACK
+      ack_request = SIPUtils::Network::SIP::Request.new("ACK", "sip:bob@example.com", "SIP/2.0")
+      ack_request.headers["Via"] = "SIP/2.0/UDP #{uac.host}:#{uac.port};branch=z9hG4bK776asdhj"
+      ack_request.headers["From"] = "Alice <sip:alice@example.com>;tag=12345"
+      ack_request.headers["To"] = "Bob <sip:bob@example.com>;tag=67890"
+      ack_request.headers["Call-ID"] = "1234567890@example.com"
+      ack_request.headers["CSeq"] = "1 ACK"
+      ack_request.headers["Content-Length"] = "0"
+      uac.send(ack_request)
+
+      # stream audio
+      uac.stream_audio(sdp, "spec/test.ulaw")
+      sleep 1.second
+      dumper.bytes.should eq(67500)
+
+      # send BYE
       bye_request = SIPUtils::Network::SIP::Request.new("BYE", "sip:bob@example.com", "SIP/2.0")
       bye_request.headers["Via"] = "SIP/2.0/UDP #{uac.host}:#{uac.port};branch=z9hG4bK776asdhj"
       bye_request.headers["From"] = "Alice <sip:alice@example.com>;tag=12345"
@@ -83,6 +143,8 @@ describe VoipstackAudioFork do
       bye_request.headers["CSeq"] = "2 BYE"
       bye_request.headers["Content-Length"] = "0"
       uac.send(bye_request)
+
+      # check BYE response
       response = uac.recv
       response.status_code.should eq(200)
     end
