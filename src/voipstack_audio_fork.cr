@@ -106,7 +106,7 @@ module VoipstackAudioFork
       @dumpers.each do |dumper|
         spawn name: "start_media_server(#{media_server.local_address} session id #{session_id})" do
           dumper.start(session_id, request.headers)
-          buffer = Bytes.new(1500)
+          buffer = Bytes.new(1500) # MTU
 
           loop do
             bytes_read, client_addr = media_server.receive(buffer)
