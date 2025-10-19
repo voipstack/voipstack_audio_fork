@@ -7,7 +7,7 @@ module VoipstackAudioFork
   VERSION = "0.1.0"
 
   abstract class MediaDumper
-    abstract def start(session_id : String)
+    abstract def start(session_id : String, context : Hash(String, String))
     abstract def dump(session_id : String, data : Bytes)
     abstract def stop(session_id : String)
   end
@@ -61,7 +61,7 @@ module VoipstackAudioFork
               Log.debug { "Received INVITE from #{client_addr}, call initiated" }
               next_session_id
               # TODO: start on ACK
-              media_server_addr = start_media_server(request.headers["Call-ID"], socket.local_address.address.to_s)
+              media_server_addr = start_media_server(request, socket.local_address.address.to_s)
               response = ua.answer_invite(request: request, media_address: media_server_addr.address.to_s, media_port: media_server_addr.port, session_id: @session_id.to_s, via_address: socket.local_address.to_s)
 
               client_send(response)
@@ -93,7 +93,8 @@ module VoipstackAudioFork
       end
     end
 
-    private def start_media_server(call_id : String, address : String)
+    private def start_media_server(request, address : String)
+      call_id = request.headers["Call-ID"]
       media_server = UDPSocket.new
       media_server.read_timeout = 1.second
       media_server.bind(address, 0)
@@ -104,7 +105,7 @@ module VoipstackAudioFork
 
       @dumpers.each do |dumper|
         spawn name: "start_media_server(#{media_server.local_address} session id #{session_id})" do
-          dumper.start(session_id)
+          dumper.start(session_id, request.headers)
           buffer = Bytes.new(1500)
 
           loop do

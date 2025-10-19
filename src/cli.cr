@@ -11,7 +11,7 @@ listen_port = 5060
 pbx_host = "127.0.0.1"
 pbx_port = 5080
 
-media_dump_url = "raw:///tmp/audio.ulaw"
+media_dump_url = "raw:///tmp/audio{Call-ID}.ulaw"
 
 OptionParser.parse do |parser|
   parser.banner = "Usage: voipstack_audio_fork [options]"
@@ -28,7 +28,7 @@ OptionParser.parse do |parser|
     listen_port = port.to_i
   end
 
-  parser.on("-o", "--output FILE", "Output file (raw://)") do |url|
+  parser.on("-o", "--output FILE", "Output file (#{media_dump_url})") do |url|
     media_dump_url = url
   end
 
@@ -46,9 +46,10 @@ class FileMediaDumper < VoipstackAudioFork::MediaDumper
     @output_path = output_path
   end
 
-  def start(session_id)
-    Log.info { "Starting media dump for session #{session_id}" }
-    @files[session_id] = File.open(@output_path, "wb")
+  def start(session_id, context : Hash(String, String))
+    Log.info { "Starting media dump for session #{session_id} : #{context.inspect}" }
+
+    @files[session_id] = File.open(render_output_path(context), "wb")
   end
 
   def dump(session_id, data : Bytes)
@@ -61,6 +62,13 @@ class FileMediaDumper < VoipstackAudioFork::MediaDumper
     Log.info { "Stopping media dump for session #{session_id}" }
     @files[session_id].close
     @files.delete(session_id)
+  end
+
+  private def render_output_path(context : Hash(String, String))
+    output_path = context.reduce(@output_path) do |path, (key, value)|
+      path.gsub("{#{key}}", value)
+    end
+    return output_path
   end
 end
 

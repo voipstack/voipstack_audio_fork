@@ -8,8 +8,8 @@ class DummyMediaDumper < VoipstackAudioFork::MediaDumper
     @bytes = 0
   end
 
-  def start(session_id)
-    Log.debug { "Dumper #{session_id} started" }
+  def start(session_id, context : Hash(String, String))
+    Log.debug { "Dumper #{session_id} : #{context.inspect} started" }
   end
 
   def dump(session_id, data)
