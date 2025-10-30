@@ -85,6 +85,8 @@ class WebsocketMediaDumper < VoipstackAudioFork::MediaDumper
     Log.info { "Starting websocket media dump for session #{session_id} : #{context.inspect}" }
 
     url = render_websocket_url(context)
+
+    Log.info { "Websocket URL: #{url}" }
     ws = HTTP::WebSocket.new(URI.parse(url))
     @websockets[session_id] = ws
 
@@ -103,16 +105,23 @@ class WebsocketMediaDumper < VoipstackAudioFork::MediaDumper
 
   def stop(session_id)
     Log.info { "Stopping websocket media dump for session #{session_id}" }
-    ws = @websockets[session_id].not_nil!
-    ws.close
-    @websockets.delete(session_id)
+    if @websockets.has_key?(session_id)
+      ws = @websockets[session_id].not_nil!
+      ws.close
+      @websockets.delete(session_id)
+    end
   end
 
   private def render_websocket_url(context : Hash(String, String))
-    url = context.reduce(@websocket_url) do |path, (key, value)|
-      path.gsub("{#{key}}", value)
+    # use custom url from sip header
+    if context.has_key?("X-VOIPSTACK-STREAM-IN-URL")
+      return context["X-VOIPSTACK-STREAM-IN-URL"]
+    else
+      url = context.reduce(@websocket_url) do |path, (key, value)|
+        path.gsub("{#{key}}", value)
+      end
+      return url
     end
-    return url
   end
 end
 
