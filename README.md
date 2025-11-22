@@ -14,6 +14,19 @@ SIP proxy that forks RTP audio streams to multiple outputs (files, WebSocket, et
 ```sh
 shards install
 shards build
+cp bin/voipstack_audio_fork /usr/local/bin/voipstack_audio_fork
+```
+
+### Production
+
+For production deployment use systemd service unit. The file should be located at `/etc/systemd/system/voipstack_audio_fork.service`.
+
+[voipstack_audio_fork.service](voipstack_audio_fork.service)
+
+```sh
+sudo useradd voipstack_agent
+sudo systemctl enable voipstack_audio_fork
+sudo systemctl start voipstack_audio_fork
 ```
 
 ## Usage

@@ -1,0 +1,16 @@
+[Unit]
+Description=VoIPStack Audio Fork
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/voipstack_audio_fork -l localhost -p 6565
+Environment=LOG_LEVEL=info
+Restart=always
+RestartSec=15
+# create user : useradd voipstack_agent
+User=voipstack_agent
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+[Install]
+WantedBy=multi-user.target
