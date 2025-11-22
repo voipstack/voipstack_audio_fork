@@ -11,6 +11,17 @@ SIP proxy that forks RTP audio streams to multiple outputs (files, WebSocket, et
 
 ## Installation
 
+### From GitHub Releases
+
+```sh
+wget https://github.com/voipstack/voipstack_audio_fork/releases/latest/download/voipstack_audio_fork_linux_x86_64.tar.gz
+tar -xzf voipstack_audio_fork_linux_x86_64.tar.gz
+sudo mv voipstack_audio_fork /usr/local/bin/
+sudo chmod +x /usr/local/bin/voipstack_audio_fork
+```
+
+### From Source
+
 ```sh
 shards install
 shards build
@@ -24,6 +35,14 @@ For production deployment use systemd service unit. The file should be located a
 [voipstack_audio_fork.service](voipstack_audio_fork.service)
 
 ```sh
+wget https://github.com/voipstack/voipstack_audio_fork/releases/latest/download/voipstack_audio_fork_linux_x86_64.tar.gz
+tar -xzf voipstack_audio_fork_linux_x86_64.tar.gz
+sudo mv voipstack_audio_fork /usr/local/bin/
+sudo chmod +x /usr/local/bin/voipstack_audio_fork
+
+wget https://raw.githubusercontent.com/voipstack/voipstack_audio_fork/refs/heads/main/voipstack_audio_fork.service
+sudo cp voipstack_audio_fork.service /etc/systemd/system/voipstack_audio_fork.service
+
 sudo useradd voipstack_agent
 sudo systemctl enable voipstack_audio_fork
 sudo systemctl start voipstack_audio_fork

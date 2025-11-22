@@ -18,12 +18,14 @@ desc 'Compress and upload to GitHub release'
 task :upload_release do
   version = YAML.load(File.open('shard.yml'))['version']
   file_name = "#{EXECUTABLE}_linux_x86_64_#{version}.tar.gz"
+  latest_file_name = "#{EXECUTABLE}_linux_x86_64.tar.gz"
 
-  sh %(tar -czvf #{file_name} ./bin/#{EXECUTABLE})
+  sh %(tar -czvf #{file_name} -C ./bin #{EXECUTABLE})
+  sh %(cp #{file_name} #{latest_file_name})
 
   # Check if the GitHub CLI is installed
   raise 'GitHub CLI is not installed' unless system('command -v gh > /dev/null 2>&1')
 
   # Upload to GitHub release
-  sh %(gh release create #{version} #{file_name} --latest --generate-notes --title "Release #{version}")
+  sh %(gh release create #{version} #{file_name} #{latest_file_name} --latest --generate-notes --title "Release #{version}")
 end
