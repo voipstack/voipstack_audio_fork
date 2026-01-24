@@ -47,13 +47,19 @@ module VoipstackAudioFork
     @has_first : Bool = false
     @payload_size : Int32
     @writer : JitterWriter
+    @write_full_packet : Bool
 
-    def initialize(@writer : JitterWriter, @payload_size : Int32 = 160)
+    def initialize(@writer : JitterWriter, @payload_size : Int32 = 160, @write_full_packet : Bool = false)
     end
 
     property writer
 
     def write(data : Bytes)
+      if @write_full_packet
+        @writer.write(data)
+        return
+      end
+
       rtp_packet = SIPUtils::RTP::Packet.parse(data).not_nil!
       sequence = rtp_packet.sequence_number
 

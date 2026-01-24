@@ -93,7 +93,7 @@ class WebsocketMediaDumper < VoipstackAudioFork::MediaDumper
     Log.info { "Websocket URL: #{url}" }
     ws = HTTP::WebSocket.new(URI.parse(url))
     writer = VoipstackAudioFork::WebsocketJitterWriter.new(ws)
-    jitter_buffer = VoipstackAudioFork::JitterBuffer.new(writer)
+    jitter_buffer = VoipstackAudioFork::JitterBuffer.new(writer, write_full_packet: true)
     @jitter_buffers[session_id] = jitter_buffer
 
     spawn do
