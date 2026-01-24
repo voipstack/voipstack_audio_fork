@@ -29,3 +29,4 @@ end
 * Always avoid duplicated code, reuse existing code.
 * Class initialization should not have side effects.
 * Format code using `crystal tool format`.
+* If unsure how to use the Crystal language, read the document `crystal_for_ruby_llm.md` for guidance.
