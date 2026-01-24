@@ -51,7 +51,8 @@ class FileMediaDumper < VoipstackAudioFork::MediaDumper
     Log.info { "Starting media dump for session #{session_id} : #{context.inspect}" }
 
     file = File.open(render_output_path(context), "wb")
-    @jitter_buffers[session_id] = VoipstackAudioFork::JitterBuffer.new(file)
+    writer = VoipstackAudioFork::FileJitterWriter.new(file)
+    @jitter_buffers[session_id] = VoipstackAudioFork::JitterBuffer.new(writer)
   end
 
   def dump(session_id, data : Bytes)
@@ -63,7 +64,7 @@ class FileMediaDumper < VoipstackAudioFork::MediaDumper
   def stop(session_id)
     Log.info { "Stopping media dump for session #{session_id}" }
     if jitter_buffer = @jitter_buffers[session_id]?
-      jitter_buffer.file.close
+      jitter_buffer.writer.close
       @jitter_buffers.delete(session_id)
     end
   end
@@ -81,7 +82,7 @@ class WebsocketMediaDumper < VoipstackAudioFork::MediaDumper
 
   def initialize(websocket_url : String)
     @websocket_url = websocket_url
-    @websockets = Hash(String, HTTP::WebSocket).new
+    @jitter_buffers = Hash(String, VoipstackAudioFork::JitterBuffer).new
   end
 
   def start(session_id, context : Hash(String, String))
@@ -91,7 +92,9 @@ class WebsocketMediaDumper < VoipstackAudioFork::MediaDumper
 
     Log.info { "Websocket URL: #{url}" }
     ws = HTTP::WebSocket.new(URI.parse(url))
-    @websockets[session_id] = ws
+    writer = VoipstackAudioFork::WebsocketJitterWriter.new(ws)
+    jitter_buffer = VoipstackAudioFork::JitterBuffer.new(writer)
+    @jitter_buffers[session_id] = jitter_buffer
 
     spawn do
       ws.run
@@ -102,17 +105,13 @@ class WebsocketMediaDumper < VoipstackAudioFork::MediaDumper
 
   def dump(session_id, data : Bytes)
     Log.debug { "Dumping data for session #{session_id} to websocket" }
-    ws = @websockets[session_id].not_nil!
-    ws.send(data)
+    jitter_buffer = @jitter_buffers[session_id]?
+    jitter_buffer.try(&.write(data))
   end
 
   def stop(session_id)
     Log.info { "Stopping websocket media dump for session #{session_id}" }
-    if @websockets.has_key?(session_id)
-      ws = @websockets[session_id].not_nil!
-      ws.close
-      @websockets.delete(session_id)
-    end
+    @jitter_buffers.delete(session_id)
   end
 
   private def render_websocket_url(context : Hash(String, String))
