@@ -12,6 +12,48 @@ module VoipstackAudioFork
     abstract def stop(session_id : String)
   end
 
+  class JitterBuffer
+    @next_sequence : UInt16 = 0_u16
+    @has_first : Bool = false
+    @file : File
+    @payload_size : Int32
+
+    def initialize(@file : File, @payload_size : Int32 = 160)
+    end
+
+    property file
+
+    def write(data : Bytes)
+      rtp_packet = SIPUtils::RTP::Packet.parse(data).not_nil!
+      sequence = rtp_packet.sequence_number
+
+      if !@has_first
+        @next_sequence = sequence + 1_u16
+        @has_first = true
+        @file.write(rtp_packet.payload)
+        return
+      end
+
+      if sequence == @next_sequence
+        @next_sequence = sequence + 1_u16
+        @file.write(rtp_packet.payload)
+      elsif sequence > @next_sequence
+        fill_gap(sequence)
+        @next_sequence = sequence + 1_u16
+        @file.write(rtp_packet.payload)
+      end
+    end
+
+    # When packets are missing, we fill the gap with silence (0xFF bytes)
+    # This ensures continuous audio playback despite packet loss
+    private def fill_gap(sequence : UInt16) : Nil
+      missing = (sequence - @next_sequence).to_i32
+      silence_samples = missing * @payload_size
+      silence = Bytes.new(silence_samples, 0xFF_u8)
+      @file.write(silence)
+    end
+  end
+
   class Server
     Log = ::Log.for("voipstack_audio_fork_server")
 

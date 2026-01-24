@@ -43,33 +43,36 @@ class FileMediaDumper < VoipstackAudioFork::MediaDumper
   Log = ::Log.for("voipstack_audio_fork::cli::FileMediaDumper")
 
   def initialize(output_path : String)
-    @files = Hash(String, File).new
+    @jitter_buffers = Hash(String, VoipstackAudioFork::JitterBuffer).new
     @output_path = output_path
   end
 
   def start(session_id, context : Hash(String, String))
     Log.info { "Starting media dump for session #{session_id} : #{context.inspect}" }
 
-    @files[session_id] = File.open(render_output_path(context), "wb")
+    file = File.open(render_output_path(context), "wb")
+    @jitter_buffers[session_id] = VoipstackAudioFork::JitterBuffer.new(file)
   end
 
   def dump(session_id, data : Bytes)
-    rtp_packet = SIPUtils::RTP::Packet.parse(data).not_nil!
     Log.info { "Dumping data for session #{session_id}" }
-    @files[session_id].write(rtp_packet.payload)
+    jitter_buffer = @jitter_buffers[session_id]?
+    jitter_buffer.try(&.write(data))
   end
 
   def stop(session_id)
     Log.info { "Stopping media dump for session #{session_id}" }
-    @files[session_id].close
-    @files.delete(session_id)
+    if jitter_buffer = @jitter_buffers[session_id]?
+      jitter_buffer.file.close
+      @jitter_buffers.delete(session_id)
+    end
   end
 
   private def render_output_path(context : Hash(String, String))
     output_path = context.reduce(@output_path) do |path, (key, value)|
       path.gsub("{#{key}}", value)
     end
-    return output_path
+    output_path
   end
 end
 
