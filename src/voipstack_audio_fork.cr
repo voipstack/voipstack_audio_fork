@@ -22,7 +22,8 @@ module VoipstackAudioFork
     end
 
     def write(data : Bytes) : Nil
-      @file.write(data)
+      rtp_packet = SIPUtils::RTP::Packet.parse(data.clone).not_nil!
+      @file.write(rtp_packet.payload)
     end
 
     def close : Nil
@@ -55,28 +56,23 @@ module VoipstackAudioFork
     property writer
 
     def write(data : Bytes)
-      if @write_full_packet
-        @writer.write(data)
-        return
-      end
-
-      rtp_packet = SIPUtils::RTP::Packet.parse(data).not_nil!
+      rtp_packet = SIPUtils::RTP::Packet.parse(data.clone).not_nil!
       sequence = rtp_packet.sequence_number
 
       if !@has_first
         @next_sequence = sequence + 1_u16
         @has_first = true
-        @writer.write(rtp_packet.payload)
+        @writer.write(data)
         return
       end
 
       if sequence == @next_sequence
         @next_sequence = sequence + 1_u16
-        @writer.write(rtp_packet.payload)
+        @writer.write(data)
       elsif sequence > @next_sequence
         fill_gap(sequence)
         @next_sequence = sequence + 1_u16
-        @writer.write(rtp_packet.payload)
+        @writer.write(data)
       end
     end
 
