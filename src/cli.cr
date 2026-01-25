@@ -104,7 +104,6 @@ class WebsocketMediaDumper < VoipstackAudioFork::MediaDumper
   end
 
   def dump(session_id, data : Bytes)
-    Log.debug { "Dumping data for session #{session_id} to websocket" }
     jitter_buffer = @jitter_buffers[session_id]?
     jitter_buffer.try(&.write(data))
   end
@@ -115,15 +114,50 @@ class WebsocketMediaDumper < VoipstackAudioFork::MediaDumper
   end
 
   private def render_websocket_url(context : Hash(String, String))
-    # use custom url from sip header
-    if context.has_key?("X-VOIPSTACK-STREAM-IN-URL")
-      return context["X-VOIPSTACK-STREAM-IN-URL"]
-    else
-      url = context.reduce(@websocket_url) do |path, (key, value)|
-        path.gsub("{#{key}}", value)
-      end
-      return url
+    url = context.reduce(@websocket_url) do |path, (key, value)|
+      path.gsub("{#{key}}", value)
     end
+    return url
+  end
+end
+
+class VoipstackWebsocketMediaDumper < VoipstackAudioFork::MediaDumper
+  Log = ::Log.for("voipstack_audio_fork::cli::WebsocketMediaDumper")
+
+  def initialize
+    @jitter_buffers = Hash(String, VoipstackAudioFork::JitterBuffer).new
+  end
+
+  def start(session_id, context : Hash(String, String))
+    Log.info { "Starting websocket media dump for session #{session_id} : #{context.inspect}" }
+
+    url = render_websocket_url(context)
+
+    Log.info { "Voipstack WebSocket URL: #{url}" }
+    ws = HTTP::WebSocket.new(URI.parse(url))
+    writer = VoipstackAudioFork::WebsocketJitterWriter.new(ws)
+    jitter_buffer = VoipstackAudioFork::JitterBuffer.new(writer, write_full_packet: true)
+    @jitter_buffers[session_id] = jitter_buffer
+
+    spawn do
+      ws.run
+    rescue ex
+      Log.error(exception: ex) { "Voipstack WebSocket error for session #{session_id}" }
+    end
+  end
+
+  def dump(session_id, data : Bytes)
+    jitter_buffer = @jitter_buffers[session_id]?
+    jitter_buffer.try(&.write(data))
+  end
+
+  def stop(session_id)
+    Log.info { "Stopping Voipstack WebSocket media dump for session #{session_id}" }
+    @jitter_buffers.delete(session_id)
+  end
+
+  private def render_websocket_url(context : Hash(String, String))
+    return context["X-VOIPSTACK-STREAM-IN-URL"].not_nil!
   end
 end
 
@@ -135,6 +169,8 @@ when "raw"
   media_dumper = FileMediaDumper.new(media_dump_uri.path)
 when "ws"
   media_dumper = WebsocketMediaDumper.new(media_dump_uri.to_s)
+when "voipstack"
+  media_dumper = VoipstackWebsocketMediaDumper.new
 else
   raise "Unsupported media dump scheme: #{media_dump_uri.scheme}"
 end
