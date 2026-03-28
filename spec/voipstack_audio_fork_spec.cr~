@@ -3,10 +3,7 @@ require "./spec_helper"
 
 
 def free_port
-  server = TCPServer.new("127.0.0.1", 0)
-  port = server.local_address.port
-  server.close
-  port
+  
 end
 
 class DummyMediaDumper < VoipstackAudioFork::MediaDumper
@@ -125,13 +122,12 @@ describe VoipstackAudioFork do
   end
 
   it "flow INVITE/Response/ACK only PCMU" do
-    port = free_port()
     dumper = DummyMediaDumper.new
     audio_fork = VoipstackAudioFork::Server.new
     audio_fork.attach_dumper(dumper)
-    address = audio_fork.bind_pair("127.0.0.1", 0, "127.0.0.1", port)
+    address = audio_fork.bind_pair("127.0.0.1", 0, "127.0.0.1", 7676)
     uac = UAC.new
-    uac.pair(address, port)
+    uac.pair(address, 7676)
 
     run_audio_fork(audio_fork) do
       # send INVITE

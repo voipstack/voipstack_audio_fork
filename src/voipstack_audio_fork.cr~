@@ -98,7 +98,6 @@ module VoipstackAudioFork
 
     def bind_pair(listen_host : String, listen_port : Int32, pbx_host : String, pbx_port : Int32) : Socket::IPAddress
       udp_server = UDPSocket.new
-      udp_server.reuse_address = true
       udp_server.bind(listen_host, listen_port)
       @sockets << udp_server
       @pbx_socket.connect(pbx_host, pbx_port)
