@@ -119,9 +119,15 @@ module VoipstackAudioFork
         spawn do
           loop do
             break if socket.closed?
-            message, client_addr = socket.receive(8096)
-            Log.debug { "Received SIP Request from #{socket.local_address}: #{message}" }
-            request = SIPUtils::Network::SIP(SIPUtils::Network::SIP::Request).parse(IO::Memory.new(message))
+            begin
+              message, client_addr = socket.receive(8096)
+              Log.debug { "Received SIP Request from #{socket.local_address}: #{message}" }
+              request = SIPUtils::Network::SIP(SIPUtils::Network::SIP::Request).parse(IO::Memory.new(message))
+            rescue ex : IO::Error | Socket::Error
+              Log.error(exception: ex) { "Network error receiving SIP message" }
+              sleep 10.millisecond
+              next
+            end
             case request.method
             when "ACK"
               Log.debug { "Received ACK from #{client_addr}, call established" }
@@ -182,9 +188,16 @@ module VoipstackAudioFork
           buffer = Bytes.new(1500) # MTU
 
           loop do
-            bytes_read, client_addr = media_server.receive(buffer)
-            Log.debug { "MediaServer #{session_id} Received #{bytes_read} bytes from #{client_addr}" }
-            dumper.dump(session_id, buffer[0, bytes_read])
+            begin
+              bytes_read, client_addr = media_server.receive(buffer)
+              Log.debug { "MediaServer #{session_id} Received #{bytes_read} bytes from #{client_addr}" }
+              dumper.dump(session_id, buffer[0, bytes_read])
+            rescue ex : IO::TimeoutError
+              next
+            rescue ex : IO::Error | Socket::Error
+              Log.error(exception: ex) { "Media server network error for session #{session_id}" }
+              break
+            end
           end
         ensure
           dumper.stop(session_id)

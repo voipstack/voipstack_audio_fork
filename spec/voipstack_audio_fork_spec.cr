@@ -1,11 +1,10 @@
 require "sip_utils"
 require "./spec_helper"
 
-
 def free_port
-  server = TCPServer.new("127.0.0.1", 0)
-  port = server.local_address.port
-  server.close
+  socket = TCPServer.new("127.0.0.1", 0)
+  port = socket.local_address.port
+  socket.close
   port
 end
 
